@@ -5,7 +5,8 @@
 // Run with:
 //   bun run examples/cli.ts search "martial peak"
 //   bun run examples/cli.ts fetch https://freewebnovel.com/martial-peak.html
-//   bun run examples/cli.ts download <novel-id> --from 1 --to 10
+//   bun run examples/cli.ts download slime-evolution --from 1 --to 10
+//   bun run examples/cli.ts download https://freewebnovel.com/slime-evolution.html --from 1 --to 10
 //   bun run examples/cli.ts list
 //   bun run examples/cli.ts status <novel-id>
 // ---------------------------------------------------------------------------
@@ -23,7 +24,7 @@ if (!command || command === '--help' || command === '-h') {
   Usage:
     search <query>          Search for novels
     fetch <url>             Fetch and save novel metadata
-    download <id> [options] Download chapters
+    download <url-or-slug> [options] Download all chapters for a novel
     list                    List saved novels
     status <id>             Show download status
     help                    Show this message
@@ -135,21 +136,33 @@ try {
     // ── download ──────────────────────────────────────────────────────────
     case 'download': {
       const { positional, flags } = parseFlags(args);
-      const novelId = positional[0];
-      if (!novelId) {
-        console.error('✗ Usage: download <id> [--from n] [--to n] [--overwrite]');
+      const identifier = positional[0];
+      if (!identifier) {
+        console.error('✗ Usage: download <url-or-slug> [--from n] [--to n] [--overwrite]');
         process.exit(1);
       }
 
-      console.log(`⬇️  Downloading novel ${novelId}...`);
+      // Accept a full URL or a bare slug
+      const BASE = 'https://freewebnovel.com';
+      const url =
+        identifier.startsWith('http://') || identifier.startsWith('https://')
+          ? identifier
+          : `${BASE}/${identifier.replace(/\.html$/, '')}.html`;
 
-      const result = await dl.downloadNovel(novelId, {
+      console.log(`📥 Fetching novel from ${url}...`);
+      const novel = await dl.fetchAndSaveNovel(url);
+      console.log(`  ✓ "${novel.title}" saved (ID: ${novel.id})\n`);
+
+      console.log(
+        `⬇️  Downloading chapters${flags.from ? ` from ${flags.from}` : ''}${flags.to ? ` to ${flags.to}` : ''}...`,
+      );
+      const result = await dl.downloadNovel(novel.id, {
         fromChapter: flags.from ? Number(flags.from) : undefined,
         toChapter: flags.to ? Number(flags.to) : undefined,
         overwrite: flags.overwrite === true,
       });
 
-      console.log('\n\n  ✓ Done!');
+      console.log('\n  ✓ Done!');
       console.log(`    Downloaded: ${result.downloadedChapters}`);
       console.log(`    Skipped:    ${result.skippedChapters}`);
       console.log(`    Failed:     ${result.failedChapters}`);
