@@ -2,6 +2,8 @@
 // Text processing utilities
 // ---------------------------------------------------------------------------
 
+import { ulid } from 'ulid';
+
 /**
  * Strip HTML tags and decode common entities.
  * Produces plain text suitable for storage / display.
@@ -41,19 +43,11 @@ export function truncate(text: string, maxLen: number): string {
 }
 
 /**
- * Generate a simple UUID v7 (time-ordered) string.
- *
- * NOTE: This is a simplified implementation; for production use
- * consider a dedicated UUID library. This provides enough
- * uniqueness for this use case.
+ * Generate a time-ordered unique identifier (ULID).
+ * 26-character Crockford base32, sortable by creation time.
  */
 export function generateId(): string {
-  const timestamp = Date.now().toString(16).padStart(12, '0');
-  const random = crypto.getRandomValues(new Uint8Array(10));
-  const randomHex = Array.from(random)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return `${timestamp}-${randomHex}`;
+  return ulid();
 }
 
 /**

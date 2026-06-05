@@ -50,7 +50,6 @@ export async function closeDb(): Promise<void> {
   if (!_db) return;
   try {
     const client = (_db as unknown as { session: { client: Client } }).session.client;
-    // libSQL client.close() is on the Client interface
     if (
       'close' in client &&
       typeof (client as unknown as { close: () => void }).close === 'function'
@@ -73,6 +72,8 @@ export async function closeDb(): Promise<void> {
 export async function migrate(db: Db): Promise<void> {
   try {
     await db.run(sqlCreateNovels);
+    await db.run(sqlCreateGenres);
+    await db.run(sqlCreateNovelGenres);
     await db.run(sqlCreateChapters);
     await db.run(sqlCreateDownloads);
   } catch (cause) {
@@ -107,16 +108,35 @@ export function resetDb(): void {
 
 const sqlCreateNovels = `
   CREATE TABLE IF NOT EXISTS novels (
-    id         TEXT PRIMARY KEY,
-    title      TEXT NOT NULL,
-    author     TEXT NOT NULL,
-    source_url TEXT NOT NULL UNIQUE,
-    cover_url  TEXT,
-    description TEXT,
-    genres     TEXT NOT NULL DEFAULT '[]',
-    status     TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('ongoing','completed','hiatus','unknown')),
-    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    id            TEXT PRIMARY KEY,
+    title         TEXT NOT NULL,
+    author        TEXT NOT NULL,
+    source_url    TEXT NOT NULL UNIQUE,
+    cover_url     TEXT,
+    description   TEXT,
+    status        TEXT NOT NULL DEFAULT 'unknown'
+                  CHECK(status IN ('ongoing','completed','hiatus','unknown')),
+    type          TEXT NOT NULL DEFAULT 'unknown'
+                  CHECK(type IN ('english','korean','chinese','japanese','unknown')),
+    chapter_count INTEGER NOT NULL DEFAULT 0,
+    created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+`;
+
+const sqlCreateGenres = `
+  CREATE TABLE IF NOT EXISTS genres (
+    id   TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL UNIQUE
+  );
+`;
+
+const sqlCreateNovelGenres = `
+  CREATE TABLE IF NOT EXISTS novel_genres (
+    novel_id TEXT NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+    genre_id TEXT NOT NULL REFERENCES genres(id) ON DELETE CASCADE,
+    PRIMARY KEY (novel_id, genre_id)
   );
 `;
 
@@ -128,20 +148,28 @@ const sqlCreateChapters = `
     title         TEXT NOT NULL,
     source_url    TEXT NOT NULL,
     content       TEXT,
+    word_count    INTEGER,
     downloaded_at INTEGER,
+    created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at    INTEGER NOT NULL DEFAULT (unixepoch()),
     UNIQUE(novel_id, number)
   );
 `;
 
 const sqlCreateDownloads = `
   CREATE TABLE IF NOT EXISTS downloads (
-    id                 TEXT PRIMARY KEY,
-    novel_id           TEXT NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
-    status             TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','downloading','completed','failed','cancelled')),
-    total_chapters     INTEGER NOT NULL DEFAULT 0,
+    id                  TEXT PRIMARY KEY,
+    novel_id            TEXT NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+    status              TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending','downloading','completed','failed','cancelled')),
+    requested_from      INTEGER,
+    requested_to        INTEGER,
+    overwrite           INTEGER NOT NULL DEFAULT 0,
+    total_chapters      INTEGER NOT NULL DEFAULT 0,
     downloaded_chapters INTEGER NOT NULL DEFAULT 0,
-    error              TEXT,
-    created_at         INTEGER NOT NULL DEFAULT (unixepoch()),
-    updated_at         INTEGER NOT NULL DEFAULT (unixepoch())
+    failed_chapters     INTEGER NOT NULL DEFAULT 0,
+    error               TEXT,
+    created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
   );
 `;

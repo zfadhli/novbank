@@ -104,6 +104,7 @@ export function parseNovelDetail(
   description: string | null;
   genres: string[];
   status: string;
+  novelType: string;
 } {
   const $ = cheerio.load(html);
 
@@ -115,6 +116,7 @@ export function parseNovelDetail(
   const $statusEl = $(
     '.m-imgtxt .item:has(.glyphicon-time) .right, .status, .novel-status',
   ).first();
+  const $typeEl = $('.m-imgtxt .item:has(.glyphicon-globe) .right').first();
 
   const genres: string[] = [];
   $genreEls.each((_, el) => {
@@ -129,6 +131,7 @@ export function parseNovelDetail(
     description: $descEl.length > 0 ? text($descEl) || null : null,
     genres,
     status: $statusEl.length > 0 ? text($statusEl).toLowerCase() : 'unknown',
+    novelType: $typeEl.length > 0 ? mapNovelType(text($typeEl)) : 'unknown',
   };
 }
 
@@ -195,4 +198,18 @@ export function parseChapterContent(html: string, url: string): { content: strin
     title: $titleEl.length > 0 ? text($titleEl) : 'Untitled',
     content: $contentEl.html() ?? '',
   };
+}
+
+// ─── Novel type mapping ──────────────────────────────────────────────────────
+
+/**
+ * Map a display name like "English Novel" or "Korean Novel" to a short type key.
+ */
+function mapNovelType(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('english')) return 'english';
+  if (lower.includes('korean')) return 'korean';
+  if (lower.includes('chinese')) return 'chinese';
+  if (lower.includes('japanese')) return 'japanese';
+  return 'unknown';
 }

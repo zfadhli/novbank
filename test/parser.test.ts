@@ -44,6 +44,7 @@ describe('parseNovelDetail', () => {
     expect(result.genres).toContain('Fantasy');
     expect(result.genres).toContain('Adventure');
     expect(result.status).toContain('ongoing');
+    expect(result.novelType).toBe('english');
   });
 
   it('should throw ParseError on completely empty HTML', () => {

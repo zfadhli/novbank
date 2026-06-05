@@ -61,6 +61,10 @@ export function mockNovelHtml(): string {
           </div>
         </div>
         <div class="item">
+          <span class="glyphicon glyphicon-globe" title="Original Language"></span>
+          <div class="right"><span class="s1"><a href="/sort/latest-release/english-novel">English Novel</a></span></div>
+        </div>
+        <div class="item">
           <span class="glyphicon glyphicon-time" title="Status"></span>
           <div class="right"><span class="s1 s2">Ongoing</span></div>
         </div>

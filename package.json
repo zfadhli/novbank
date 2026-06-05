@@ -33,7 +33,8 @@
     "@libsql/client": "^0.14.0",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.38.3",
-    "impit": "^0.14.1"
+    "impit": "^0.14.1",
+    "ulid": "^3.0.2"
   },
   "peerDependencies": {
     "@libsql/client": "^0.14.0",
