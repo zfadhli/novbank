@@ -5,9 +5,15 @@
 // Handles the workflow: fetch → parse → persist → report.
 // ---------------------------------------------------------------------------
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { type Db, closeDb, initDb, migrate } from './db';
-import { chaptersTable, downloadsTable, novelsTable } from './db/schema';
+import {
+  chaptersTable,
+  downloadsTable,
+  genresTable,
+  novelGenresTable,
+  novelsTable,
+} from './db/schema';
 import { DatabaseError, NotFoundError, ValidationError } from './errors';
 import { Scraper } from './scraper';
 import {
@@ -133,6 +139,8 @@ export class NovelDownloader {
       description: detail.description,
       genres: detail.genres,
       status: mapStatus(detail.status),
+      novelType: detail.novelType as Novel['novelType'],
+      chapterCount: 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -156,8 +164,8 @@ export class NovelDownloader {
             author: novel.author,
             coverUrl: novel.coverUrl,
             description: novel.description,
-            genres: JSON.stringify(novel.genres),
             status: novel.status,
+            type: novel.novelType,
             updatedAt: now,
           })
           .where(eq(novelsTable.id, existingId));
@@ -170,8 +178,8 @@ export class NovelDownloader {
           sourceUrl: novel.sourceUrl,
           coverUrl: novel.coverUrl,
           description: novel.description,
-          genres: JSON.stringify(novel.genres),
           status: novel.status,
+          type: novel.novelType,
           createdAt: now,
           updatedAt: now,
         });
@@ -183,6 +191,17 @@ export class NovelDownloader {
         operation: 'fetchAndSaveNovel',
       });
     }
+
+    // Save genres to the normalized pivot table
+    await saveGenres(db, novel.id, novel.genres);
+
+    // Compute chapter count from the parsed list (chapters are saved on demand by downloadNovel)
+    const chapters = parseChapterList(html, this.config.baseUrl, sourceUrl);
+    novel.chapterCount = chapters.length;
+    await db
+      .update(novelsTable)
+      .set({ chapterCount: chapters.length })
+      .where(eq(novelsTable.id, novel.id));
 
     return novel;
   }
@@ -285,15 +304,29 @@ export class NovelDownloader {
     if (existingDownload.length > 0) {
       await db
         .update(downloadsTable)
-        .set({ status: 'downloading', updatedAt: Math.floor(Date.now() / 1000) })
+        .set({
+          status: 'downloading',
+          requestedFrom: options?.fromChapter ?? null,
+          requestedTo: options?.toChapter ?? null,
+          overwrite: options?.overwrite ?? false,
+          totalChapters: totalToDownload,
+          downloadedChapters: 0,
+          failedChapters: 0,
+          error: null,
+          updatedAt: Math.floor(Date.now() / 1000),
+        })
         .where(eq(downloadsTable.novelId, novelId as NovelId));
     } else {
       await db.insert(downloadsTable).values({
         id: generateId(),
         novelId: novel.id,
         status: 'downloading',
+        requestedFrom: options?.fromChapter ?? null,
+        requestedTo: options?.toChapter ?? null,
+        overwrite: options?.overwrite ?? false,
         totalChapters: totalToDownload,
         downloadedChapters: 0,
+        failedChapters: 0,
         createdAt: Math.floor(Date.now() / 1000),
         updatedAt: Math.floor(Date.now() / 1000),
       });
@@ -339,6 +372,7 @@ export class NovelDownloader {
       .set({
         status: finalStatus,
         downloadedChapters: downloadedCount,
+        failedChapters: errors.length,
         updatedAt: Math.floor(Date.now() / 1000),
       })
       .where(eq(downloadsTable.novelId, novelId as NovelId));
@@ -363,7 +397,10 @@ export class NovelDownloader {
     this.ensureInit();
     const db = this.assertDb();
     const rows = await db.select().from(novelsTable).orderBy(novelsTable.updatedAt);
-    return rows.map(rowToNovel);
+    const novels = rows.map((r) => r as typeof novelsTable.$inferSelect);
+    // Batch-load genres for all novels
+    const novelsWithGenres = await attachGenres(db, novels);
+    return novelsWithGenres.map(rowToNovel);
   }
 
   /** Get a single novel by ID. */
@@ -379,7 +416,10 @@ export class NovelDownloader {
       });
     }
 
-    return rowToNovel(rows[0] as typeof novelsTable.$inferSelect);
+    const novelsWithGenres = await attachGenres(db, [rows[0] as typeof novelsTable.$inferSelect]);
+    return rowToNovel(
+      novelsWithGenres[0] as typeof novelsTable.$inferSelect & { genres: string[] },
+    );
   }
 
   /** List chapters for a novel. */
@@ -434,12 +474,14 @@ export class NovelDownloader {
     const html = await this.scraper.fetchHtml(ch.sourceUrl);
     const parsed = parseChapterContent(html, ch.sourceUrl);
     const plainText = stripHtml(parsed.content);
+    const wordCount = plainText.split(/\s+/).filter(Boolean).length;
 
     const db = this.assertDb();
     await db
       .update(chaptersTable)
       .set({
         content: plainText,
+        wordCount,
         downloadedAt: Math.floor(Date.now() / 1000),
       })
       .where(and(eq(chaptersTable.id, ch.id), eq(chaptersTable.novelId, novelId)));
@@ -475,7 +517,72 @@ function mapStatus(raw: string): Novel['status'] {
   return 'unknown';
 }
 
-function rowToNovel(row: typeof novelsTable.$inferSelect): Novel {
+/** Attach genre names to an array of novel rows. */
+async function attachGenres(
+  db: Db,
+  novelRows: (typeof novelsTable.$inferSelect)[],
+): Promise<Array<typeof novelsTable.$inferSelect & { genres: string[] }>> {
+  if (novelRows.length === 0) return [];
+
+  const novelIds = novelRows.map((r) => r.id);
+
+  // Fetch all novel-genre links for these novels
+  const links = await db
+    .select({ novelId: novelGenresTable.novelId, genreSlug: novelGenresTable.genreId })
+    .from(novelGenresTable)
+    .where(inArray(novelGenresTable.novelId, novelIds));
+
+  if (links.length === 0) {
+    return novelRows.map((r) => ({ ...r, genres: [] }));
+  }
+
+  // Fetch genre names for all linked genre slugs
+  const genreSlugs = [...new Set(links.map((l) => l.genreSlug))];
+  const genreRows = await db
+    .select({ slug: genresTable.slug, name: genresTable.name })
+    .from(genresTable)
+    .where(inArray(genresTable.slug, genreSlugs));
+
+  const genreNameBySlug = new Map(genreRows.map((g) => [g.slug, g.name]));
+
+  // Build novelId → genre names map
+  const genresByNovel = new Map<string, string[]>();
+  for (const link of links) {
+    const list = genresByNovel.get(link.novelId) ?? [];
+    const name = genreNameBySlug.get(link.genreSlug);
+    if (name) list.push(name);
+    genresByNovel.set(link.novelId, list);
+  }
+
+  return novelRows.map((r) => ({
+    ...r,
+    genres: genresByNovel.get(r.id) ?? [],
+  }));
+}
+
+/** Save genre names to the normalized genre + pivot tables. */
+async function saveGenres(db: Db, novelId: string, genreNames: string[]): Promise<void> {
+  for (const name of genreNames) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+
+    // Use the slug as the genre ID for simplicity
+    const slug = trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    if (!slug) continue;
+
+    await db
+      .insert(genresTable)
+      .values({ id: slug, name: trimmed, slug })
+      .onConflictDoNothing({ target: genresTable.id });
+
+    await db.insert(novelGenresTable).values({ novelId, genreId: slug }).onConflictDoNothing();
+  }
+}
+
+function rowToNovel(row: typeof novelsTable.$inferSelect & { genres: string[] }): Novel {
   return {
     id: row.id as NovelId,
     title: row.title,
@@ -483,8 +590,10 @@ function rowToNovel(row: typeof novelsTable.$inferSelect): Novel {
     sourceUrl: row.sourceUrl,
     coverUrl: row.coverUrl,
     description: row.description,
-    genres: safeJsonParseArray(row.genres),
+    genres: row.genres,
     status: row.status as Novel['status'],
+    novelType: row.type as Novel['novelType'],
+    chapterCount: row.chapterCount as number,
     createdAt: row.createdAt as number,
     updatedAt: row.updatedAt as number,
   };
@@ -498,6 +607,7 @@ function rowToChapter(row: typeof chaptersTable.$inferSelect): Chapter {
     title: row.title,
     sourceUrl: row.sourceUrl,
     content: row.content,
+    wordCount: row.wordCount as number | null,
     downloadedAt: row.downloadedAt as number | null,
   };
 }
@@ -507,21 +617,16 @@ function rowToDownload(row: typeof downloadsTable.$inferSelect): Download {
     id: row.id as DownloadId,
     novelId: row.novelId as NovelId,
     status: row.status as Download['status'],
+    requestedFrom: row.requestedFrom as number | null,
+    requestedTo: row.requestedTo as number | null,
+    overwrite: Boolean(row.overwrite),
     totalChapters: row.totalChapters,
     downloadedChapters: row.downloadedChapters,
+    failedChapters: row.failedChapters,
     error: row.error,
     createdAt: row.createdAt as number,
     updatedAt: row.updatedAt as number,
   };
-}
-
-function safeJsonParseArray(value: string): string[] {
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
 }
 
 function chunkArray<T>(arr: T[], size: number): T[][] {

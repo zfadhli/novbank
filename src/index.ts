@@ -31,6 +31,7 @@ export type {
   Novel,
   Chapter,
   Download,
+  Genre,
   DownloaderConfig,
   DownloadOptions,
   DownloadResult,
@@ -38,6 +39,7 @@ export type {
   NovelPreview,
   DownloadStatus,
   NovelStatus,
+  NovelType,
   ProgressEvent,
   ProgressCallback,
   NovelId,
@@ -54,4 +56,6 @@ export type {
   ChapterSelect,
   DownloadInsert,
   DownloadSelect,
+  GenreInsert,
+  GenreSelect,
 } from './db/schema';
