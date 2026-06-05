@@ -1,14 +1,17 @@
 # Changelog
 
-## [0.3.0] - 2026-06-05
+## [0.4.0] - 2026-06-05
 
 ### Added
 
-- **Novel type**: Extract language/category from the site (english, korean, chinese, japanese) and store as a typed enum column
-- **Genres normalization**: Replace JSON blob with genres + novel_genres pivot table, enabling WHERE queries by genre
-- **Word count**: Track word count per chapter on download
-- **Timestamps**: created_at and updated_at columns on chapters table for future sync support
-- **Indexes**: Add indexes on title, author, status, and download status for common query patterns
+- **Markdown content**: Chapter content is now saved as proper Markdown (via turndown) instead of plain stripped text, preserving bold, italic, headings, and lists
+- **Range gap-filling**: When downloading a chapter range that extends beyond what's stored in the DB, the missing chapters are automatically discovered and inserted
+
+### Changed
+
+- **Clean chapter titles**: Numeric prefixes are stripped from chapter titles (e.g. "Chapter 1 - 01 - World Without Hope" becomes "World Without Hope"); falls back to the original title if stripping yields an empty string
+
+## [0.3.0] - 2026-06-05
 
 ### Changed
 
@@ -57,6 +60,7 @@
 - **GitHub Actions CI** — typecheck, lint, test on push/PR; automated npm publish on version tags
 - **Project conventions** — `AGENTS.md` with emoji conventional commits, branch naming, pre-commit gates, and knowledge graph workflow
 
+[0.4.0]: https://github.com/zfadhli/novbank/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/zfadhli/novbank/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/zfadhli/novbank/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/zfadhli/novbank/compare/v0.0.0...v0.1.0
