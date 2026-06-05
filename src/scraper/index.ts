@@ -22,8 +22,7 @@ export interface ScraperConfig {
 export class Scraper {
   private readonly config: ScraperConfig;
   private readonly client: Impit;
-  private lastRequestTime = 0;
-  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastRequest: Promise<void> = Promise.resolve();
 
   constructor(config: ScraperConfig) {
     this.config = config;
@@ -71,29 +70,24 @@ export class Scraper {
   }
 
   /**
-   * Dispose of the scraper, clearing any pending rate-limit timer.
+   * Dispose of the scraper.
    */
   dispose(): void {
-    if (this.pendingTimer) {
-      clearTimeout(this.pendingTimer);
-      this.pendingTimer = null;
-    }
+    // No-op — promises settle on their own
   }
 
   // ── Rate limiting ──────────────────────────────────────────────────────
 
-  private async rateLimit(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
+  /**
+   * Serialize requests by chaining onto a shared promise with the configured delay.
+   * This guarantees at least `requestDelayMs` between consecutive requests even
+   * when `fetchHtml` is called concurrently (e.g. via Promise.allSettled batches).
+   */
+  private rateLimit(): Promise<void> {
     const delay = this.config.requestDelayMs;
-
-    if (elapsed < delay) {
-      const waitMs = delay - elapsed;
-      await new Promise<void>((resolve) => {
-        this.pendingTimer = setTimeout(resolve, waitMs);
-      });
-    }
-
-    this.lastRequestTime = Date.now();
+    this.lastRequest = this.lastRequest.then(
+      () => new Promise<void>((resolve) => setTimeout(resolve, delay)),
+    );
+    return this.lastRequest;
   }
 }

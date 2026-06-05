@@ -166,6 +166,12 @@ try {
       console.log(`    Downloaded: ${result.downloadedChapters}`);
       console.log(`    Skipped:    ${result.skippedChapters}`);
       console.log(`    Failed:     ${result.failedChapters}`);
+      if (result.errors.length > 0) {
+        console.log('');
+        for (const err of result.errors) {
+          console.log(`  ✗ ${err.error}`);
+        }
+      }
       break;
     }
 

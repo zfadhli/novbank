@@ -18,7 +18,7 @@ function queryOne(
   selector: string,
   ctx?: { url?: string },
 ): cheerio.Cheerio<AnyNode> {
-  const el = $(selector);
+  const el = $(selector).first();
   if (el.length === 0) {
     const errorContext: Record<string, unknown> = { selector };
     if (ctx?.url) errorContext.url = ctx.url;
@@ -107,12 +107,14 @@ export function parseNovelDetail(
 } {
   const $ = cheerio.load(html);
 
-  const $titleEl = queryOne($, 'h1, .title, .novel-title');
-  const $authorEl = $('.author, .info .author').first();
-  const $coverEl = $('.cover img, .novel-cover img').first();
-  const $descEl = $('.description, .synopsis, .novel-desc').first();
-  const $genreEls = $('.genre a, .genres a, .tags a');
-  const $statusEl = $('.status, .novel-status').first();
+  const $titleEl = queryOne($, '.m-desc h1.tit, .g-tit h3.tit, h1, .title, .novel-title');
+  const $authorEl = $('.m-imgtxt [href^="/author/"], .author, .info .author').first();
+  const $coverEl = $('.m-imgtxt .pic img, .cover img, .novel-cover img').first();
+  const $descEl = $('.m-desc .txt .inner, .description, .synopsis, .novel-desc').first();
+  const $genreEls = $('.m-imgtxt [href^="/genre/"], .genre a, .genres a, .tags a');
+  const $statusEl = $(
+    '.m-imgtxt .item:has(.glyphicon-time) .right, .status, .novel-status',
+  ).first();
 
   const genres: string[] = [];
   $genreEls.each((_, el) => {
@@ -136,12 +138,13 @@ export function parseNovelDetail(
  */
 export function parseChapterList(
   html: string,
-  baseUrl: string,
+  _baseUrl: string,
+  sourcePageUrl: string,
 ): Array<{ number: number; title: string; url: string }> {
   const $ = cheerio.load(html);
 
-  // Try common selectors for chapter list containers
-  const $container = $('.chapter-list, .chapters, #chapters, .list-chapter');
+  // Try known selectors for the chapter list container
+  const $container = $('#idData, .chapter-list, .chapters, #chapters, .list-chapter');
   const $links = $container.length > 0 ? $container.find('a') : $('a');
 
   const chapters: Array<{ number: number; title: string; url: string }> = [];
@@ -163,9 +166,8 @@ export function parseChapterList(
     const number = Number.parseInt(numStr, 10);
     if (!Number.isFinite(number)) return;
 
-    const url = href.startsWith('http')
-      ? href
-      : `${baseUrl.replace(/\/+$/, '')}${href.startsWith('/') ? '' : '/'}${href}`;
+    // Resolve relative URLs against the novel page URL (not the site root)
+    const url = href.startsWith('http') ? href : new URL(href, sourcePageUrl).href;
 
     chapters.push({ number, title: chapterText, url });
   });
@@ -179,8 +181,8 @@ export function parseChapterList(
 export function parseChapterContent(html: string, url: string): { content: string; title: string } {
   const $ = cheerio.load(html);
 
-  const $titleEl = $('h1, .chapter-title, .title').first();
-  const $contentEl = $('#chapter-content, .chapter-content, .content, article').first();
+  const $titleEl = $('.chapter, #article h4, h1, .chapter-title, .title').first();
+  const $contentEl = $('#article, #chapter-content, .chapter-content, .content, article').first();
 
   if ($contentEl.length === 0) {
     throw new ParseError('Could not find chapter content element', {
