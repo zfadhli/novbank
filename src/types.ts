@@ -108,6 +108,12 @@ export interface DownloaderConfig {
    */
   requestDelayMs?: number;
   /**
+   * Maximum random jitter added to requestDelayMs (in milliseconds).
+   * Makes request intervals less predictable to avoid bot detection.
+   * Default: `500`
+   */
+  jitterMs?: number;
+  /**
    * Maximum number of concurrent chapter downloads.
    * Default: `3`
    */
