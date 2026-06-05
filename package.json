@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external drizzle-orm --external @libsql/client --external node-html-parser",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external drizzle-orm --external @libsql/client --external cheerio --external impit",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome check src/ test/",
@@ -31,13 +31,14 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "cheerio": "^1.2.0",
     "drizzle-orm": "^0.38.3",
-    "node-html-parser": "^6.1.13"
+    "impit": "^0.14.1"
   },
   "peerDependencies": {
     "@libsql/client": "^0.14.0",
     "drizzle-orm": "^0.38.0",
-    "node-html-parser": "^6.0.0"
+    "cheerio": "^1.0.0"
   },
   "files": ["dist", "README.md", "LICENSE"],
   "publishConfig": {

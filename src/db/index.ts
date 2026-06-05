@@ -2,6 +2,8 @@
 // Database — Connection & migration helpers
 // ---------------------------------------------------------------------------
 
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { createClient } from '@libsql/client';
 import type { Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -21,6 +23,9 @@ let _db: Db | null = null;
  */
 export function initDb(dbPath: string): Db {
   if (_db) return _db;
+
+  // Ensure the parent directory exists — libSQL won't create it automatically
+  mkdirSync(dirname(dbPath), { recursive: true });
 
   try {
     const client: Client = createClient({
