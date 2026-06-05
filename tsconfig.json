@@ -7,7 +7,6 @@
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
     "strict": true,
-    "downlevelIteration": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,

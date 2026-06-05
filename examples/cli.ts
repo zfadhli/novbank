@@ -31,7 +31,8 @@ if (!command || command === '--help' || command === '-h') {
 
   Options (download):
     --from <n>  Start chapter (default: 1)
-    --to   <n>  End chapter (default: all)
+    --to <n>    End chapter (default: 50, use --to all for no limit)
+    --latest    Download the next 50 chapters after the last downloaded one
     --overwrite Re-download already saved chapters
   `);
   process.exit(0);
@@ -153,12 +154,31 @@ try {
       const novel = await dl.fetchAndSaveNovel(url);
       console.log(`  ✓ "${novel.title}" saved (ID: ${novel.id})\n`);
 
+      // Determine the chapter range to download
+      let fromChapter: number | undefined;
+      let toChapter: number | undefined;
+
+      if (flags.latest === true) {
+        // Pick up where we left off: next 50 chapters after the last downloaded one
+        const chapters = await dl.listChapters(novel.id);
+        const maxDownloaded = Math.max(
+          0,
+          ...chapters.filter((c) => c.content !== null).map((c) => c.number),
+        );
+        fromChapter = maxDownloaded + 1;
+        toChapter = fromChapter + 49;
+      } else {
+        fromChapter = flags.from ? Number(flags.from) : undefined;
+        toChapter =
+          flags.to === 'all' || flags.to === true ? undefined : flags.to ? Number(flags.to) : 50;
+      }
+
       console.log(
-        `⬇️  Downloading chapters${flags.from ? ` from ${flags.from}` : ''}${flags.to ? ` to ${flags.to}` : ''}...`,
+        `⬇️  Downloading chapters ${fromChapter ?? 1}${toChapter ? `-${toChapter}` : '+'}...`,
       );
       const result = await dl.downloadNovel(novel.id, {
-        fromChapter: flags.from ? Number(flags.from) : undefined,
-        toChapter: flags.to ? Number(flags.to) : undefined,
+        fromChapter,
+        toChapter,
         overwrite: flags.overwrite === true,
       });
 

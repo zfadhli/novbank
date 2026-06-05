@@ -44,6 +44,7 @@ const DEFAULTS = {
   dbPath: './data/novels.db',
   baseUrl: 'https://freewebnovel.com',
   requestDelayMs: 1_000,
+  jitterMs: 500,
   maxConcurrency: 3,
 } as const satisfies Partial<DownloaderConfig>;
 
@@ -60,6 +61,7 @@ export class NovelDownloader {
       dbPath: config?.dbPath ?? DEFAULTS.dbPath,
       baseUrl: config?.baseUrl ?? DEFAULTS.baseUrl,
       requestDelayMs: config?.requestDelayMs ?? DEFAULTS.requestDelayMs,
+      jitterMs: config?.jitterMs ?? DEFAULTS.jitterMs,
       maxConcurrency: config?.maxConcurrency ?? DEFAULTS.maxConcurrency,
       onProgress: config?.onProgress ?? (() => {}),
     };
@@ -67,6 +69,7 @@ export class NovelDownloader {
     this.scraper = new Scraper({
       baseUrl: this.config.baseUrl,
       requestDelayMs: this.config.requestDelayMs,
+      jitterMs: this.config.jitterMs,
     });
   }
 
