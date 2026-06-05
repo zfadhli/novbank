@@ -1,0 +1,48 @@
+{
+  "name": "novbank",
+  "version": "0.1.0",
+  "description": "A TypeScript library for downloading novels from freewebnovel.com and storing them in SQLite via Drizzle ORM + libSQL",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external drizzle-orm --external @libsql/client --external node-html-parser",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "biome check src/ test/",
+    "lint:fix": "biome check --apply-unsafe src/ test/",
+    "format": "biome format --write src/ test/",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.30.4",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.38.3",
+    "node-html-parser": "^6.1.13"
+  },
+  "peerDependencies": {
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.38.0",
+    "node-html-parser": "^6.0.0"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": ["novel", "downloader", "freewebnovel", "sqlite", "drizzle", "libsql", "bun"],
+  "license": "MIT"
+}

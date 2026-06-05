@@ -1,0 +1,74 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Novbank CI workflow
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger: push to any branch, PRs against main.
+# Stages: typecheck → lint/format → test.
+#
+# On tag push (v*): also publish to npm.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**", "fix/**", "chore/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Quality gates (typecheck + lint + test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type-check
+        run: bun run typecheck
+
+      - name: Lint & format check
+        run: bun run lint
+
+      - name: Run tests
+        run: bun test
+        env:
+          NODE_ENV: test
+
+  publish:
+    name: Publish to npm
+    needs: [quality]
+    # Only run on tag push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish to npm
+        run: |
+          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+          bun publish --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

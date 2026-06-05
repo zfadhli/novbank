@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "downlevelIteration": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    "types": ["bun-types"]
+  },
+  "include": ["src", "test", "drizzle.config.ts"]
+}
