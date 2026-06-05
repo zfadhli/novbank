@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.0] - 2026-06-05
+
+### Changed
+
+- **scraper**: Replace node-html-parser with cheerio for HTML parsing, replace Bun fetch with impit for TLS fingerprint customization
+- **rate limiter**: Fix race condition where concurrent requests bypassed the delay by switching to promise-queue serialization
+- **chapter saving**: Remove pre-save of all chapters in `fetchAndSaveNovel`; `downloadNovel` now scrapes and saves only the requested chapter range
+
+### Fixed
+
+- **parser selectors**: Novel detail fields (author, genres, cover, description, status) were empty because CSS selectors didn't match freewebnovel.com's HTML structure
+- **queryOne**: Returned all matched elements instead of only the first, causing title text to concatenate section headers ("6 Latest Chapters", "Chapter List", etc.)
+- **chapter content parser**: Content selector missed the `#article` container used by freewebnovel.com
+- **foreign key constraint**: Re-fetching an existing novel caused `SQLITE_CONSTRAINT_FOREIGNKEY` because chapter inserts used a stale local ID instead of the existing novel's ID
+- **database init**: Auto-create parent directory in `initDb()` to prevent "Unable to open connection" errors
+
+### Added
+
+- **CLI download**: Accept URL or bare slug (e.g. `slime-evolution`) — auto-resolves to full URL and fetches novel before downloading
+- **CLI error display**: Individual chapter failure messages now shown in download summary
+- **examples**: Basic usage script, full CLI tool, and Bun.serve API server with REST endpoints
+
 ## [0.1.0] - 2026-06-05
 
 ### Added
@@ -19,4 +41,5 @@
 - **GitHub Actions CI** — typecheck, lint, test on push/PR; automated npm publish on version tags
 - **Project conventions** — `AGENTS.md` with emoji conventional commits, branch naming, pre-commit gates, and knowledge graph workflow
 
+[0.2.0]: https://github.com/zfadhli/novbank/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/zfadhli/novbank/compare/v0.0.0...v0.1.0
