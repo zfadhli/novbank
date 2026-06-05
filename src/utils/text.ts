@@ -2,7 +2,15 @@
 // Text processing utilities
 // ---------------------------------------------------------------------------
 
+import TurndownService from 'turndown';
 import { ulid } from 'ulid';
+
+const turndownService = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+  emDelimiter: '*',
+  bulletListMarker: '-',
+});
 
 /**
  * Strip HTML tags and decode common entities.
@@ -24,6 +32,30 @@ export function stripHtml(html: string): string {
     .replace(/&ndash;/g, '–')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * Convert HTML to Markdown using turndown.
+ * Preserves formatting like bold, italic, headings, and lists.
+ */
+export function htmlToMarkdown(html: string): string {
+  return turndownService.turndown(html);
+}
+
+/**
+ * Strip the numeric prefix from a chapter title.
+ *
+ * "Chapter 1 - 01 - World Without Hope"   → "World Without Hope"
+ * "Chapter 277 - New Equipment"           → "New Equipment"
+ * "Chapter 1: The Beginning"              → "The Beginning"
+ * "Ch. 5 - Title"                         → "Title"
+ * "Chapter 1"                             → "Chapter 1"  (preserved as-is)
+ */
+export function cleanChapterTitle(raw: string): string {
+  const cleaned = raw
+    .replace(/^(?:Chapter|Ch\.?)\s*\d+\s*[-:.]?\s*(?:\d+\s*[-:.]?\s*)?/i, '')
+    .trim();
+  return cleaned || raw.trim();
 }
 
 /**

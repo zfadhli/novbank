@@ -9,7 +9,7 @@ import * as cheerio from 'cheerio';
 import type { AnyNode } from 'domhandler';
 import { ParseError } from '../errors';
 import type { NovelPreview } from '../types';
-import { normalizeWhitespace } from '../utils/text';
+import { cleanChapterTitle, normalizeWhitespace } from '../utils/text';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -172,7 +172,7 @@ export function parseChapterList(
     // Resolve relative URLs against the novel page URL (not the site root)
     const url = href.startsWith('http') ? href : new URL(href, sourcePageUrl).href;
 
-    chapters.push({ number, title: chapterText, url });
+    chapters.push({ number, title: cleanChapterTitle(chapterText), url });
   });
 
   return chapters;

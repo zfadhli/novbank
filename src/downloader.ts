@@ -36,7 +36,7 @@ import type {
   ProgressEvent,
   SearchResult,
 } from './types';
-import { generateId, stripHtml } from './utils/text';
+import { generateId, htmlToMarkdown } from './utils/text';
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -276,6 +276,41 @@ export class NovelDownloader {
         .orderBy(chaptersTable.number);
     }
 
+    // If chapters exist but the requested range extends beyond what's stored,
+    // scrape the novel page and insert only the missing chapters
+    const maxInDb = chapterRows.length > 0 ? Math.max(...chapterRows.map((c) => c.number)) : 0;
+    const requestedTo = options?.toChapter ?? Number.POSITIVE_INFINITY;
+
+    if (chapterRows.length > 0 && requestedTo > maxInDb && Number.isFinite(requestedTo)) {
+      const html = await this.scraper.fetchHtml(novel.sourceUrl);
+      const allChapters = parseChapterList(html, this.config.baseUrl, novel.sourceUrl);
+
+      const missing = allChapters.filter((c) => c.number > maxInDb && c.number <= requestedTo);
+
+      for (const ch of missing) {
+        await db
+          .insert(chaptersTable)
+          .values({
+            id: generateId(),
+            novelId: novel.id,
+            number: ch.number,
+            title: ch.title,
+            sourceUrl: ch.url,
+            content: null,
+            downloadedAt: null,
+          })
+          .onConflictDoNothing({ target: [chaptersTable.novelId, chaptersTable.number] });
+      }
+
+      if (missing.length > 0) {
+        chapterRows = await db
+          .select()
+          .from(chaptersTable)
+          .where(eq(chaptersTable.novelId, novelId))
+          .orderBy(chaptersTable.number);
+      }
+    }
+
     // Apply range and overwrite filters
     if (options?.fromChapter) {
       chapterRows = chapterRows.filter((c) => c.number >= (options.fromChapter ?? 0));
@@ -473,14 +508,14 @@ export class NovelDownloader {
   ): Promise<void> {
     const html = await this.scraper.fetchHtml(ch.sourceUrl);
     const parsed = parseChapterContent(html, ch.sourceUrl);
-    const plainText = stripHtml(parsed.content);
-    const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+    const markdown = htmlToMarkdown(parsed.content);
+    const wordCount = markdown.split(/\s+/).filter(Boolean).length;
 
     const db = this.assertDb();
     await db
       .update(chaptersTable)
       .set({
-        content: plainText,
+        content: markdown,
         wordCount,
         downloadedAt: Math.floor(Date.now() / 1000),
       })

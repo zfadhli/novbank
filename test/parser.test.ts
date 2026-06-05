@@ -59,7 +59,7 @@ describe('parseChapterList', () => {
     const chapters = parseChapterList(mockNovelHtml(), BASE_URL, `${BASE_URL}/test-novel.html`);
     expect(chapters.length).toBe(2);
     expect(chapters[0]?.number).toBe(1);
-    expect(chapters[0]?.title).toContain('Chapter 1');
+    expect(chapters[0]?.title).toBe('The Beginning');
     expect(chapters[1]?.number).toBe(2);
   });
 });
