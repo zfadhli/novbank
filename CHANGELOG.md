@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0] - 2026-06-05
+
+### Added
+
+- **Burst protection**: Rate limiter now truly serializes every request — no more 3-at-once batches hitting the server simultaneously
+- **Retry with exponential backoff**: Failed chapters are retried 3 times with escalating delays for 429 rate limits, 5xx server errors, and timeouts
+- **Random jitter**: Request intervals randomized at 1000ms ± 500ms to avoid predictable bot-like patterns
+- **`--latest` CLI flag**: Automatically computes the next 50-chapter range after the last downloaded chapter, enabling incremental "pick up where I left off" downloads
+- **`jitterMs` config option**: Configurable randomization window via `DownloaderConfig`
+
+### Changed
+
+- **CLI default range**: `--to` now defaults to 50 chapters instead of unlimited; use `--to all` for no limit
+
 ## [0.4.0] - 2026-06-05
 
 ### Added
@@ -60,6 +74,7 @@
 - **GitHub Actions CI** — typecheck, lint, test on push/PR; automated npm publish on version tags
 - **Project conventions** — `AGENTS.md` with emoji conventional commits, branch naming, pre-commit gates, and knowledge graph workflow
 
+[0.5.0]: https://github.com/zfadhli/novbank/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/zfadhli/novbank/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/zfadhli/novbank/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/zfadhli/novbank/compare/v0.1.0...v0.2.0
