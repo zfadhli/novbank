@@ -18,5 +18,5 @@
     "outDir": "dist",
     "types": ["bun-types"]
   },
-  "include": ["src", "test", "drizzle.config.ts"]
+  "include": ["src", "test", "examples", "drizzle.config.ts"]
 }

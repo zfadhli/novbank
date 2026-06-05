@@ -55,7 +55,7 @@ describe('parseNovelDetail', () => {
 
 describe('parseChapterList', () => {
   it('should parse chapter links from novel page', () => {
-    const chapters = parseChapterList(mockNovelHtml(), BASE_URL);
+    const chapters = parseChapterList(mockNovelHtml(), BASE_URL, `${BASE_URL}/test-novel.html`);
     expect(chapters.length).toBe(2);
     expect(chapters[0]?.number).toBe(1);
     expect(chapters[0]?.title).toContain('Chapter 1');

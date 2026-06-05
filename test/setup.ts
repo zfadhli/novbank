@@ -43,19 +43,42 @@ export function mockNovelHtml(): string {
 <html>
 <head><title>Test Novel</title></head>
 <body>
-  <h1>The Test Novel</h1>
-  <div class="author">Test Author</div>
-  <div class="cover"><img src="/covers/test.jpg" /></div>
-  <div class="description"><p>A novel used for testing purposes.</p></div>
-  <div class="genres">
-    <a href="/genre/fantasy">Fantasy</a>
-    <a href="/genre/adventure">Adventure</a>
+  <div class="m-info">
+    <div class="m-imgtxt">
+      <div class="pic">
+        <img src="/covers/test.jpg" />
+      </div>
+      <div class="txt">
+        <div class="item">
+          <span class="glyphicon glyphicon-user" title="Author"></span>
+          <div class="right"><a href="/author/TestAuthor" class="a1">Test Author</a></div>
+        </div>
+        <div class="item">
+          <span class="glyphicon glyphicon-th-list" title="Genre"></span>
+          <div class="right">
+            <a href="/genre/fantasy">Fantasy</a>
+            <a href="/genre/adventure">Adventure</a>
+          </div>
+        </div>
+        <div class="item">
+          <span class="glyphicon glyphicon-time" title="Status"></span>
+          <div class="right"><span class="s1 s2">Ongoing</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="m-desc">
+      <h1 class="tit">The Test Novel</h1>
+      <div class="txt">
+        <div class="inner">
+          <p>A novel used for testing purposes.</p>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="status">Ongoing</div>
-  <div class="chapter-list">
-    <a href="/test-novel/chapter-1.html">Chapter 1: The Beginning</a>
-    <a href="/test-novel/chapter-2.html">Chapter 2: The Middle</a>
-  </div>
+  <ul class="ul-list5" id="idData">
+    <li><a href="/test-novel/chapter-1.html">Chapter 1: The Beginning</a></li>
+    <li><a href="/test-novel/chapter-2.html">Chapter 2: The Middle</a></li>
+  </ul>
 </body>
 </html>`;
 }
@@ -66,12 +89,15 @@ export function mockChapterHtml(number: number): string {
 <html>
 <head><title>Chapter ${number}</title></head>
 <body>
-  <h1>Chapter ${number}: Test Content</h1>
-  <div id="chapter-content">
-    <p>This is the content of chapter ${number}.</p>
-    <p>It has multiple paragraphs for testing.</p>
-    <br/>
-    <p>End of chapter.</p>
+  <span class="chapter">Chapter ${number}: Test Content</span>
+  <div class="txt">
+    <div id="article">
+      <h4>Chapter ${number}: Test Content</h4>
+      <p>This is the content of chapter ${number}.</p>
+      <p>It has multiple paragraphs for testing.</p>
+      <br/>
+      <p>End of chapter.</p>
+    </div>
   </div>
 </body>
 </html>`;

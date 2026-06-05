@@ -1,32 +1,34 @@
 // ---------------------------------------------------------------------------
 // Scraper — HTTP fetch layer
 // ---------------------------------------------------------------------------
-// Thin wrapper around Bun's built-in `fetch` with rate limiting,
-// error handling, and retry logic.
+// Uses `impit` for TLS fingerprint customization (avoid bot detection)
+// with the same Response API as the standard fetch.
 // ---------------------------------------------------------------------------
 
+import { Impit } from 'impit';
 import { NetworkError } from '../errors';
-import type { ProgressCallback } from '../types';
 
 export interface ScraperConfig {
   baseUrl: string;
   requestDelayMs: number;
-  onProgress?: ProgressCallback;
 }
 
 /**
  * Scraper — handles HTTP requests to freewebnovel.com.
  *
- * Exposes simple `fetchHtml` and `fetchJson` methods.
+ * Uses impit with Chrome TLS fingerprint to avoid bot detection.
  * Rate-limited to be a good citizen.
  */
 export class Scraper {
   private readonly config: ScraperConfig;
-  private lastRequestTime = 0;
-  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly client: Impit;
+  private lastRequest: Promise<void> = Promise.resolve();
 
   constructor(config: ScraperConfig) {
     this.config = config;
+    this.client = new Impit({
+      browser: 'chrome',
+    });
   }
 
   /**
@@ -36,12 +38,14 @@ export class Scraper {
   async fetchHtml(url: string): Promise<string> {
     await this.rateLimit();
 
-    let response: Response;
+    let response: { ok: boolean; status: number; statusText: string; text(): Promise<string> };
     try {
-      response = await fetch(url, {
+      response = await this.client.fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Novbank/0.1; +https://github.com/novbank)',
-          Accept: 'text/html,application/xhtml+xml',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
         },
         signal: AbortSignal.timeout(30_000),
       });
@@ -66,29 +70,24 @@ export class Scraper {
   }
 
   /**
-   * Dispose of the scraper, clearing any pending rate-limit timer.
+   * Dispose of the scraper.
    */
   dispose(): void {
-    if (this.pendingTimer) {
-      clearTimeout(this.pendingTimer);
-      this.pendingTimer = null;
-    }
+    // No-op — promises settle on their own
   }
 
   // ── Rate limiting ──────────────────────────────────────────────────────
 
-  private async rateLimit(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
+  /**
+   * Serialize requests by chaining onto a shared promise with the configured delay.
+   * This guarantees at least `requestDelayMs` between consecutive requests even
+   * when `fetchHtml` is called concurrently (e.g. via Promise.allSettled batches).
+   */
+  private rateLimit(): Promise<void> {
     const delay = this.config.requestDelayMs;
-
-    if (elapsed < delay) {
-      const waitMs = delay - elapsed;
-      await new Promise<void>((resolve) => {
-        this.pendingTimer = setTimeout(resolve, waitMs);
-      });
-    }
-
-    this.lastRequestTime = Date.now();
+    this.lastRequest = this.lastRequest.then(
+      () => new Promise<void>((resolve) => setTimeout(resolve, delay)),
+    );
+    return this.lastRequest;
   }
 }

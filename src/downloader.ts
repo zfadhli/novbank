@@ -5,7 +5,7 @@
 // Handles the workflow: fetch → parse → persist → report.
 // ---------------------------------------------------------------------------
 
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { type Db, closeDb, initDb, migrate } from './db';
 import { chaptersTable, downloadsTable, novelsTable } from './db/schema';
 import { DatabaseError, NotFoundError, ValidationError } from './errors';
@@ -30,14 +30,7 @@ import type {
   ProgressEvent,
   SearchResult,
 } from './types';
-import { stripHtml } from './utils/text';
-import { generateId } from './utils/text';
-import {
-  buildChapterUrl,
-  buildNovelUrl,
-  extractChapterNumber,
-  extractNovelSlug,
-} from './utils/url';
+import { generateId, stripHtml } from './utils/text';
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -127,8 +120,6 @@ export class NovelDownloader {
 
     const html = await this.scraper.fetchHtml(sourceUrl);
     const detail = parseNovelDetail(html, this.config.baseUrl);
-    const _slug = extractNovelSlug(sourceUrl);
-    const chapters = parseChapterList(html, this.config.baseUrl);
 
     const novelId = generateId();
     const now = Math.floor(Date.now() / 1000);
@@ -193,37 +184,6 @@ export class NovelDownloader {
       });
     }
 
-    // Save chapters
-    for (const ch of chapters) {
-      const chapterId = generateId();
-      try {
-        await db
-          .insert(chaptersTable)
-          .values({
-            id: chapterId,
-            novelId,
-            number: ch.number,
-            title: ch.title,
-            sourceUrl: ch.url,
-            content: null,
-            downloadedAt: null,
-          })
-          .onConflictDoNothing({ target: [chaptersTable.novelId, chaptersTable.number] });
-      } catch {}
-    }
-
-    // Create download tracking record
-    const downloadId = generateId();
-    await db.insert(downloadsTable).values({
-      id: downloadId,
-      novelId,
-      status: 'pending',
-      totalChapters: chapters.length,
-      downloadedChapters: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
-
     return novel;
   }
 
@@ -256,13 +216,48 @@ export class NovelDownloader {
 
     const novel = novelRows[0] as typeof novelsTable.$inferSelect;
 
-    // Fetch chapters that need content
+    // Fetch chapters from DB — if none exist, scrape the novel page to get the list
     let chapterRows = await db
       .select()
       .from(chaptersTable)
       .where(eq(chaptersTable.novelId, novelId))
       .orderBy(chaptersTable.number);
 
+    if (chapterRows.length === 0) {
+      // Scrape the novel page to discover the chapter list
+      const html = await this.scraper.fetchHtml(novel.sourceUrl);
+      const allChapters = parseChapterList(html, this.config.baseUrl, novel.sourceUrl);
+
+      // Determine which chapters to save (respecting the requested range)
+      const from = options?.fromChapter ?? 1;
+      const to = options?.toChapter ?? Number.POSITIVE_INFINITY;
+      const wanted = allChapters.filter((c) => c.number >= from && c.number <= to);
+
+      // Insert only the chapters in the requested range
+      for (const ch of wanted) {
+        await db
+          .insert(chaptersTable)
+          .values({
+            id: generateId(),
+            novelId: novel.id,
+            number: ch.number,
+            title: ch.title,
+            sourceUrl: ch.url,
+            content: null,
+            downloadedAt: null,
+          })
+          .onConflictDoNothing({ target: [chaptersTable.novelId, chaptersTable.number] });
+      }
+
+      // Re-query to get the inserted rows
+      chapterRows = await db
+        .select()
+        .from(chaptersTable)
+        .where(eq(chaptersTable.novelId, novelId))
+        .orderBy(chaptersTable.number);
+    }
+
+    // Apply range and overwrite filters
     if (options?.fromChapter) {
       chapterRows = chapterRows.filter((c) => c.number >= (options.fromChapter ?? 0));
     }
@@ -280,11 +275,29 @@ export class NovelDownloader {
     let downloadedCount = 0;
     const skippedCount = 0;
 
-    // Update download status
-    await db
-      .update(downloadsTable)
-      .set({ status: 'downloading', updatedAt: Math.floor(Date.now() / 1000) })
-      .where(eq(downloadsTable.novelId, novelId as NovelId));
+    // Create or update download tracking record
+    const existingDownload = await db
+      .select({ id: downloadsTable.id })
+      .from(downloadsTable)
+      .where(eq(downloadsTable.novelId, novelId as NovelId))
+      .limit(1);
+
+    if (existingDownload.length > 0) {
+      await db
+        .update(downloadsTable)
+        .set({ status: 'downloading', updatedAt: Math.floor(Date.now() / 1000) })
+        .where(eq(downloadsTable.novelId, novelId as NovelId));
+    } else {
+      await db.insert(downloadsTable).values({
+        id: generateId(),
+        novelId: novel.id,
+        status: 'downloading',
+        totalChapters: totalToDownload,
+        downloadedChapters: 0,
+        createdAt: Math.floor(Date.now() / 1000),
+        updatedAt: Math.floor(Date.now() / 1000),
+      });
+    }
 
     this.emitProgress(novel, 'downloading', totalToDownload, downloadedCount);
 
@@ -293,17 +306,25 @@ export class NovelDownloader {
     const chunks = chunkArray(chapterRows, concurrency);
 
     for (const batch of chunks) {
-      const results = await Promise.allSettled(
-        batch.map((ch) => this.downloadSingleChapter(ch, novelId as NovelId)),
+      const batchResults = await Promise.allSettled(
+        batch.map(async (ch) => {
+          try {
+            await this.downloadSingleChapter(ch, novelId as NovelId);
+            return ch.number;
+          } catch (err) {
+            throw { chapter: ch.number, cause: err };
+          }
+        }),
       );
 
-      for (const result of results) {
+      for (const result of batchResults) {
         if (result.status === 'fulfilled') {
           downloadedCount++;
         } else {
+          const reason = result.reason as { chapter: number; cause: unknown };
           errors.push({
-            chapterNumber: -1,
-            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            chapterNumber: reason.chapter,
+            error: reason.cause instanceof Error ? reason.cause.message : String(reason.cause),
           });
         }
       }
