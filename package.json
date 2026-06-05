@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external drizzle-orm --external @libsql/client --external cheerio --external impit",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external drizzle-orm --external @libsql/client --external cheerio --external impit --external turndown",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome check src/ test/",
@@ -31,9 +31,11 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "@types/turndown": "^5.0.6",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.38.3",
     "impit": "^0.14.1",
+    "turndown": "^7.2.4",
     "ulid": "^3.0.2"
   },
   "peerDependencies": {
